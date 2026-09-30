@@ -1,0 +1,23 @@
+# Compiled binaries
+*.o
+*.obj
+chronicle
+chronicle.exe
+
+# Build artifacts
+src/*.o
+
+# IDE and editor folders
+.vscode/
+.vs/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Chronicle's own internal data (don't track a repo inside a repo)
+.chronicle/
