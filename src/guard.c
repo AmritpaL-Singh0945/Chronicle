@@ -1,5 +1,6 @@
 #include "guard.h"
 #include "utils.h"
+#include "hash.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -58,6 +59,8 @@ int check_guards(void) {
     int violations = 0;
     char line[256];
 
+    int head = get_head();
+
     while (fgets(line, sizeof(line), f)) {
         line[strcspn(line, "\n")] = '\0';
         if (strlen(line) == 0) continue;
@@ -69,14 +72,35 @@ int check_guards(void) {
                 printf("  ║        !! CHRONICLE GUARD WARNING !!      ║\n");
                 printf("  ╚══════════════════════════════════════════╝\n");
             }
-            printf("  MISSING guarded file: '%s'\n", line);
+            printf("  MISSING guarded file:  '%s'\n", line);
             violations++;
+        } else if (head > 0) {
+            /* Check if it was modified since the last commit */
+            char snapshot_path[512];
+            snprintf(snapshot_path, sizeof(snapshot_path), "%s/%04d/files/%s", COMMITS_DIR, head, line);
+
+            if (path_exists(snapshot_path)) {
+                char current_hash[17], snap_hash[17];
+                hash_file(line, current_hash);
+                hash_file(snapshot_path, snap_hash);
+
+                if (strcmp(current_hash, snap_hash) != 0) {
+                    if (violations == 0) {
+                        printf("\n");
+                        printf("  ╔══════════════════════════════════════════╗\n");
+                        printf("  ║        !! CHRONICLE GUARD WARNING !!      ║\n");
+                        printf("  ╚══════════════════════════════════════════╝\n");
+                    }
+                    printf("  MODIFIED guarded file: '%s'\n", line);
+                    violations++;
+                }
+            }
         }
     }
 
     if (violations > 0) {
-        printf("  %d guarded file(s) are missing from your working directory.\n", violations);
-        printf("  Make sure you haven't accidentally deleted them.\n\n");
+        printf("  %d guarded file(s) have been deleted or modified.\n", violations);
+        printf("  Make sure these changes are intentional before committing.\n\n");
     }
 
     fclose(f);
