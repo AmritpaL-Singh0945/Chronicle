@@ -3,12 +3,11 @@
 #include "hash.h"
 #include "guard.h"
 #include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <dirent.h>
 
-int cmd_add(const char *filename) {
-    if (!path_exists(CHRONICLE_DIR)) {
-        fprintf(stderr, "Error: Not a Chronicle repository. Run 'chronicle init' first.\n");
-        return 1;
-    }
+static int add_file(const char *filename) {
 
     if (!path_exists(filename)) {
         fprintf(stderr, "Error: File '%s' not found.\n", filename);
@@ -55,4 +54,44 @@ int cmd_add(const char *filename) {
 
     printf("Staged: %s\n", filename);
     return 0;
+}
+
+static int add_recursive(const char *path) {
+    if (is_directory(path)) {
+        DIR *dir = opendir(path);
+        if (!dir) return 1;
+
+        struct dirent *entry;
+        while ((entry = readdir(dir)) != NULL) {
+            if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+                continue;
+            
+            /* Ignore .chronicle and .git entirely */
+            if (strcmp(entry->d_name, ".chronicle") == 0 || strcmp(entry->d_name, ".git") == 0)
+                continue;
+
+            char full_path[512];
+            /* Handle path joining without double slashes */
+            if (strcmp(path, ".") == 0) {
+                snprintf(full_path, sizeof(full_path), "%s", entry->d_name);
+            } else {
+                snprintf(full_path, sizeof(full_path), "%s/%s", path, entry->d_name);
+            }
+            
+            add_recursive(full_path);
+        }
+        closedir(dir);
+        return 0;
+    } else {
+        return add_file(path);
+    }
+}
+
+int cmd_add(const char *filename) {
+    if (!path_exists(CHRONICLE_DIR)) {
+        fprintf(stderr, "Error: Not a Chronicle repository. Run 'chronicle init' first.\n");
+        return 1;
+    }
+
+    return add_recursive(filename);
 }

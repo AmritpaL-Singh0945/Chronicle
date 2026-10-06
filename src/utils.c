@@ -6,6 +6,12 @@ int path_exists(const char *path) {
     return stat(path, &st) == 0;
 }
 
+int is_directory(const char *path) {
+    struct stat st;
+    if (stat(path, &st) != 0) return 0;
+    return S_ISDIR(st.st_mode);
+}
+
 int make_dir(const char *path) {
     return MAKE_DIR(path);
 }

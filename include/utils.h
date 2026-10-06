@@ -22,6 +22,9 @@
 
 int path_exists(const char *path);
 
+/* Returns 1 if path is a directory, 0 otherwise */
+int is_directory(const char *path);
+
 int make_dir(const char *path);
 
 void make_dirs(const char *path);
