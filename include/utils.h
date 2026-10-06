@@ -18,12 +18,16 @@
 #define HEAD_FILE       ".chronicle/HEAD"
 #define INDEX_FILE      ".chronicle/staging_index.txt"
 #define GUARDS_FILE     ".chronicle/guards.cfg"
+#define IGNORE_FILE     ".chronicleignore"
 
 
 int path_exists(const char *path);
 
 /* Returns 1 if path is a directory, 0 otherwise */
 int is_directory(const char *path);
+
+/* Returns 1 if file matches a pattern in .chronicleignore */
+int is_ignored(const char *filename);
 
 int make_dir(const char *path);
 

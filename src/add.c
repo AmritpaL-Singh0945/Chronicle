@@ -8,6 +8,9 @@
 #include <dirent.h>
 
 static int add_file(const char *filename) {
+    if (is_ignored(filename)) {
+        return 0; 
+    }
 
     if (!path_exists(filename)) {
         fprintf(stderr, "Error: File '%s' not found.\n", filename);
@@ -65,17 +68,20 @@ static int add_recursive(const char *path) {
         while ((entry = readdir(dir)) != NULL) {
             if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
                 continue;
-            
-            /* Ignore .chronicle and .git entirely */
+
             if (strcmp(entry->d_name, ".chronicle") == 0 || strcmp(entry->d_name, ".git") == 0)
                 continue;
 
             char full_path[512];
-            /* Handle path joining without double slashes */
+
             if (strcmp(path, ".") == 0) {
                 snprintf(full_path, sizeof(full_path), "%s", entry->d_name);
             } else {
                 snprintf(full_path, sizeof(full_path), "%s/%s", path, entry->d_name);
+            }
+
+            if (is_ignored(full_path)) {
+                continue;
             }
             
             add_recursive(full_path);

@@ -12,6 +12,36 @@ int is_directory(const char *path) {
     return S_ISDIR(st.st_mode);
 }
 
+int is_ignored(const char *filename) {
+    FILE *f = fopen(IGNORE_FILE, "r");
+    if (!f) return 0;
+
+    const char *basename = strrchr(filename, '/');
+    if (basename) basename++;
+    else basename = filename;
+
+    char line[256];
+    while (fgets(line, sizeof(line), f)) {
+        line[strcspn(line, "\n")] = '\0';
+        if (strlen(line) == 0) continue;
+
+        if (line[0] == '*') {
+            const char *ext = line + 1;
+            size_t len_f = strlen(basename);
+            size_t len_e = strlen(ext);
+            if (len_f >= len_e && strcmp(basename + len_f - len_e, ext) == 0) {
+                fclose(f);
+                return 1;
+            }
+        } else if (strcmp(basename, line) == 0 || strcmp(filename, line) == 0) {
+            fclose(f);
+            return 1;
+        }
+    }
+    fclose(f);
+    return 0;
+}
+
 int make_dir(const char *path) {
     return MAKE_DIR(path);
 }

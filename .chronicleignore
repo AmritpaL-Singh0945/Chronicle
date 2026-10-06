@@ -1,0 +1,3 @@
+*.o
+chronicle
+.DS_Store
