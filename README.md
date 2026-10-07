@@ -111,7 +111,6 @@ Chronicle uses the **LCS (Longest Common Subsequence)** algorithm — the same a
 1. Read both file versions line by line
 2. Build an LCS table using dynamic programming
 3. Backtrack to identify added (`+`) and removed (`-`) lines
-4. Print results with color-coded output
 
 ---
 
