@@ -8,6 +8,13 @@
 #define MAX_LINES    2000
 #define MAX_LINE_LEN 1024
 
+typedef enum { LINE_SAME, LINE_ADD, LINE_DEL } LineType;
+
+typedef struct {
+    LineType type;
+    char text[MAX_LINE_LEN];
+} DiffEntry;
+
 static int read_lines(const char *path, char lines[][MAX_LINE_LEN]) {
     FILE *f = fopen(path, "r");
     if (!f) return 0;
@@ -15,57 +22,54 @@ static int read_lines(const char *path, char lines[][MAX_LINE_LEN]) {
     int count = 0;
     while (count < MAX_LINES && fgets(lines[count], MAX_LINE_LEN, f)) {
         int len = strlen(lines[count]);
-        if (len > 0 && lines[count][len - 1] == '\n')
+        if (len > 0 && lines[count][len - 1] == '\n') {
             lines[count][len - 1] = '\0';
+        }
         count++;
     }
     fclose(f);
     return count;
 }
 
-void diff_files(const char *old_path, const char *new_path, const char *label) {
-    char (*old_lines)[MAX_LINE_LEN] = malloc(MAX_LINES * MAX_LINE_LEN);
-    char (*new_lines)[MAX_LINE_LEN] = malloc(MAX_LINES * MAX_LINE_LEN);
-    if (!old_lines || !new_lines) {
-        fprintf(stderr, "Error: Out of memory during diff.\n");
-        free(old_lines); free(new_lines);
-        return;
-    }
-
-    int old_count = read_lines(old_path, old_lines);
-    int new_count = read_lines(new_path, new_lines);
-
+static int **allocate_lcs_table(int old_count, int new_count) {
     int **lcs = (int **)malloc((old_count + 1) * sizeof(int *));
     for (int i = 0; i <= old_count; i++) {
         lcs[i] = (int *)calloc(new_count + 1, sizeof(int));
     }
+    return lcs;
+}
 
-    /* Fill the LCS table bottom-up */
+static void free_lcs_table(int **lcs, int old_count) {
+    for (int i = 0; i <= old_count; i++) {
+        free(lcs[i]);
+    }
+    free(lcs);
+}
+
+static void compute_lcs(int **lcs, char (*old_lines)[MAX_LINE_LEN], char (*new_lines)[MAX_LINE_LEN], int old_count, int new_count) {
     for (int i = 1; i <= old_count; i++) {
         for (int j = 1; j <= new_count; j++) {
             if (strcmp(old_lines[i - 1], new_lines[j - 1]) == 0) {
                 lcs[i][j] = lcs[i - 1][j - 1] + 1;
             } else {
-                lcs[i][j] = lcs[i - 1][j] > lcs[i][j - 1]
-                           ? lcs[i - 1][j]
-                           : lcs[i][j - 1];
+                lcs[i][j] = lcs[i - 1][j] > lcs[i][j - 1] ? lcs[i - 1][j] : lcs[i][j - 1];
             }
         }
     }
-    
-    typedef enum { LINE_SAME, LINE_ADD, LINE_DEL } LineType;
-    typedef struct { LineType type; char text[MAX_LINE_LEN]; } DiffEntry;
+}
 
-    DiffEntry *entries = (DiffEntry *)malloc((old_count + new_count + 1) * sizeof(DiffEntry));
+static int generate_diff_entries(int **lcs, char (*old_lines)[MAX_LINE_LEN], char (*new_lines)[MAX_LINE_LEN], int old_count, int new_count, DiffEntry *entries) {
     int entry_count = 0;
+    int i = old_count;
+    int j = new_count;
 
-    int i = old_count, j = new_count;
     while (i > 0 || j > 0) {
         if (i > 0 && j > 0 && strcmp(old_lines[i - 1], new_lines[j - 1]) == 0) {
             entries[entry_count].type = LINE_SAME;
             strncpy(entries[entry_count].text, old_lines[i - 1], MAX_LINE_LEN - 1);
             entry_count++;
-            i--; j--;
+            i--;
+            j--;
         } else if (j > 0 && (i == 0 || lcs[i][j - 1] >= lcs[i - 1][j])) {
             entries[entry_count].type = LINE_ADD;
             strncpy(entries[entry_count].text, new_lines[j - 1], MAX_LINE_LEN - 1);
@@ -78,7 +82,10 @@ void diff_files(const char *old_path, const char *new_path, const char *label) {
             i--;
         }
     }
+    return entry_count;
+}
 
+static void print_diff(DiffEntry *entries, int entry_count, const char *label) {
     printf("\n  diff: %s\n", label);
     printf("  --- last commit\n");
     printf("  +++ working tree\n");
@@ -93,17 +100,38 @@ void diff_files(const char *old_path, const char *new_path, const char *label) {
             printf("  + %s\n", entries[k].text);
             has_changes = 1;
         }
-
     }
 
-    if (!has_changes)
+    if (!has_changes) {
         printf("  (no changes)\n");
+    }
 
     printf("  ──────────────────────────────────────\n");
+}
 
-    for (int k = 0; k <= old_count; k++)
-        free(lcs[k]);
-    free(lcs);
+void diff_files(const char *old_path, const char *new_path, const char *label) {
+    char (*old_lines)[MAX_LINE_LEN] = malloc(MAX_LINES * MAX_LINE_LEN);
+    char (*new_lines)[MAX_LINE_LEN] = malloc(MAX_LINES * MAX_LINE_LEN);
+    
+    if (!old_lines || !new_lines) {
+        fprintf(stderr, "Error: Out of memory during diff.\n");
+        free(old_lines);
+        free(new_lines);
+        return;
+    }
+
+    int old_count = read_lines(old_path, old_lines);
+    int new_count = read_lines(new_path, new_lines);
+
+    int **lcs = allocate_lcs_table(old_count, new_count);
+    compute_lcs(lcs, old_lines, new_lines, old_count, new_count);
+
+    DiffEntry *entries = (DiffEntry *)malloc((old_count + new_count + 1) * sizeof(DiffEntry));
+    int entry_count = generate_diff_entries(lcs, old_lines, new_lines, old_count, new_count, entries);
+
+    print_diff(entries, entry_count, label);
+
+    free_lcs_table(lcs, old_count);
     free(entries);
     free(old_lines);
     free(new_lines);
@@ -157,11 +185,13 @@ int cmd_diff(const char *filename) {
                     build_path(old_path, sizeof(old_path), files_path, token);
 
                     if (path_exists(token)) {
-                        char old_hash[17], new_hash[17];
+                        char old_hash[17];
+                        char new_hash[17];
                         hash_file(old_path, old_hash);
                         hash_file(token, new_hash);
-                        if (strcmp(old_hash, new_hash) != 0)
+                        if (strcmp(old_hash, new_hash) != 0) {
                             diff_files(old_path, token, token);
+                        }
                     } else {
                         printf("\n  '%s' was deleted from the working tree.\n", token);
                     }
